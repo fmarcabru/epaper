@@ -2,12 +2,12 @@ import driver
 from utime import sleep_ms
 # from utime import ticks_ms, ticks_diff
 #import OpenSansBold as font
-import OpenSansBoldDigits20 as digits20
-import OpenSansBoldDigits30 as digits30
-import OpenSansBoldDigits39 as digits40
-import OpenSansBoldDigits as digits50
+#import OpenSansBoldDigits20 as digits20
+import OpenSansBoldDigits20 as digits30
+#import OpenSansBoldDigits39 as digits40
+#import OpenSansBoldDigits as digits50
 #from micropython import mem_info
-import antonio20 as font20
+#import antonio20 as font20
 
 
 print(spi)
@@ -43,14 +43,14 @@ ypos=50
 
 #print(type(font))
 
-epaper.display_str(frame_black, 120, ypos, "what is here", font20, driver.COLORED)
+epaper.display_str(frame_black, 120, ypos, "what is here", digits30, driver.COLORED)
 xpos=30
 ypos=120
-epaper.display_str(frame_red, 10, 90, "1234", digits40, driver.COLORED)
-epaper.display_str(frame_red, 10, 10, "1234", digits20, driver.COLORED)
-epaper.display_str(frame_red, 10, 40, "1234", digits30, driver.COLORED)
+epaper.display_str(frame_black, 10, 90, "1234", digits30, driver.COLORED)
+epaper.display_str(frame_black, 10, 10, "1234", digits30, driver.COLORED)
+epaper.display_str(frame_black, 10, 40, "1234", digits30, driver.COLORED)
 #epaper.display_str(frame_red, 10, 90, "1234", digits40, driver.COLORED)
-epaper.display_str(frame_red, 10, 150, "1234", digits50, driver.COLORED)
+epaper.display_str(frame_black, 10, 150, "1234", digits30, driver.COLORED)
 #epaper.display_string_at(frame_black, 30, 30, "More 45", font, driver.COLORED)
 
 

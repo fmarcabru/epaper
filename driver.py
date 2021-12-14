@@ -439,14 +439,6 @@ class EPaperDisplay:
             if height % 8 != 0:
                 offset += 1
 
-#        for j in range(height):
-#            for i in range(width):
-#                if chardata[offset] & (0x80 >> (i % 8)):
-#                    self.set_pixel(frame_buffer, x + i, y + j, colored)
-#                if i % 8 == 7:
-#                    offset += 1
-#            if width % 8 != 0:
-#                offset += 1
 
 
     def display_string(self, frame_buffer: bytearray, x: int, y: int, text: str, font: bytes, colored: int) -> None:
