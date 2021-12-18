@@ -104,6 +104,44 @@ class EPaperDisplay:
         """Sleeps until busy pin is on (idle)"""
         while not self.busy_pin():
             sleep_ms(100)
+            
+    def _set_pixel(self, black_red: str, x: int, y: int, colored: int) -> None:
+        if (x < 0 or x >= self.width or y < 0 or y >= self.height):
+            #print("Pixel broken")
+            return
+        if (self.rotate == ROTATE_90):
+            point_temp = x
+            x = EPD_WIDTH - y
+            y = point_temp
+        elif (self.rotate == ROTATE_180):
+            x = EPD_WIDTH - x
+            y = EPD_HEIGHT- y
+        elif (self.rotate == ROTATE_270):
+            point_temp = x
+            x = y
+            y = EPD_HEIGHT - point_temp
+        self._set_absolute_pixel(black_red, x, y, colored)
+
+
+    def _set_absolute_pixel(self, black_red: str, x: int, y: int, colored: int) -> None:
+        # To avoid display orientation effects
+        # use EPD_WIDTH instead of self.width
+        # use EPD_HEIGHT instead of self.height
+        if (x < 0 or x >= EPD_WIDTH or y < 0 or y >= EPD_HEIGHT):
+            return
+        if colored:
+            if black_red == 'black':
+                self.black_frame[int((x + y * EPD_WIDTH) / 8)] &= ~(0x80 >> (x % 8))
+            elif black_red == 'red':
+                self.red_frame[int((x + y * EPD_WIDTH) / 8)] &= ~(0x80 >> (x % 8))
+            else:
+                print("Wrong option")
+        else:
+            if black_red == 'black':
+                self.black_frame[int((x + y * EPD_WIDTH) / 8)] |= 0x80 >> (x % 8)
+            elif black_red == 'red':
+                self.red_frame[int((x + y * EPD_WIDTH) / 8)] |= 0x80 >> (x % 8)
+    
 
     def sleep(self) -> None:
         """Puts the display to sleep"""
@@ -126,16 +164,23 @@ class EPaperDisplay:
         self._send_command(DISPLAY_REFRESH)
         self._wait_until_idle()
 
-    def clear_canvas(self) -> None:
+    def clear_canvas(self,black_red: str) -> None:
         '''resets canvas'''
         for pos in range(len(self.black_frame)):
-            self.black_frame[pos]=255
 
-        return bytearray([0xFF] * self.area)
+            if black_red == 'black':
+                self.black_frame[pos]=255
+            elif black_red == 'red':
+                self.red_frame[pos]=255
 
-    def setdarkframe(self) -> bytearray:
+
+    def setdarkframe(self,black_red: str) -> bytearray:
         '''Creates dark canvas'''
-        return bytearray([0x00] * self.area)
+        for pos in range(len(self.black_frame)):
+            if black_red == 'black':
+                self.black_frame[pos]=0
+            elif black_red == 'red':
+                self.red_frame[pos]=0
 
     def reset(self) -> None:
         '''Module reset'''
@@ -271,44 +316,6 @@ class EPaperDisplay:
         except OSError as e:
             print("not found")
             print('error: {}'.format(e))
-
-    def _set_pixel(self, black_red: str, x: int, y: int, colored: int) -> None:
-        if (x < 0 or x >= self.width or y < 0 or y >= self.height):
-            #print("Pixel broken")
-            return
-        if (self.rotate == ROTATE_90):
-            point_temp = x
-            x = EPD_WIDTH - y
-            y = point_temp
-        elif (self.rotate == ROTATE_180):
-            x = EPD_WIDTH - x
-            y = EPD_HEIGHT- y
-        elif (self.rotate == ROTATE_270):
-            point_temp = x
-            x = y
-            y = EPD_HEIGHT - point_temp
-        self._set_absolute_pixel(black_red, x, y, colored)
-
-
-    def _set_absolute_pixel(self, black_red: str, x: int, y: int, colored: int) -> None:
-        # To avoid display orientation effects
-        # use EPD_WIDTH instead of self.width
-        # use EPD_HEIGHT instead of self.height
-        if (x < 0 or x >= EPD_WIDTH or y < 0 or y >= EPD_HEIGHT):
-            return
-        if colored:
-            if black_red == 'black':
-                self.black_frame[int((x + y * EPD_WIDTH) / 8)] &= ~(0x80 >> (x % 8))
-            elif black_red == 'red':
-                self.red_frame[int((x + y * EPD_WIDTH) / 8)] &= ~(0x80 >> (x % 8))
-            else:
-                print("Wrong option")
-        else:
-            if black_red == 'black':
-                self.black_frame[int((x + y * EPD_WIDTH) / 8)] |= 0x80 >> (x % 8)
-            elif black_red == 'red':
-                self.red_frame[int((x + y * EPD_WIDTH) / 8)] |= 0x80 >> (x % 8)
-    
 
     def draw_line(self, black_red: str, x0: int, y0: int, x1: int, y1: int, colored: int) -> None:
         # Bresenham algorithm
