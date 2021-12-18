@@ -70,7 +70,7 @@ class EPaperDisplay:
     LUT_RED0 = bytearray(b"\x83\x5D\x01\x81\x48\x23\x77\x77\x01\x00\x00\x00\x00\x00\x00")
     LUT_RED1 = LUT_VCOM1
 
-    def __init__(self, reset, dc, busy, cs, spi):
+    def __init__(self, reset: Pin, dc: Pin, busy: Pin, cs: Pin, spi: SPI):
         self.reset_pin = reset
         self.dataorcommand_pin = dc
         self.busy_pin = busy
@@ -80,24 +80,27 @@ class EPaperDisplay:
         self.height = EPD_HEIGHT
         self.rotate = ROTATE_0
         self.area = self.width * self.height // 8
+        self.black_frame = bytearray([0xFF] * self.area)
+        self.red_frame = bytearray([0xFF] * self.area)
 
-    def send_data(self, data: bytearray) -> None:
+
+    def _send_data(self, data: bytearray) -> None:
         '''Sends data over SPI'''
         self.dataorcommand_pin(DATA)
         self.chipselect_pin(0)
         self.spi.write(data)
         self.chipselect_pin(1)
 
-    def send_command(self, command: bytes, data: bytearray=None) -> None:
+    def _send_command(self, command: bytes, data: bytearray=None) -> None:
         '''Sends commands over SPI'''
         self.dataorcommand_pin(COMMAND)
         self.chipselect_pin(0)
         self.spi.write(bytearray([command]))
         self.chipselect_pin(1)
         if data:
-            self.send_data(data)
+            self._send_data(data)
 
-    def wait_until_idle(self) -> None:
+    def _wait_until_idle(self) -> None:
         """Sleeps until busy pin is on (idle)"""
         while not self.busy_pin():
             sleep_ms(100)
@@ -105,26 +108,29 @@ class EPaperDisplay:
     def sleep(self) -> None:
         """Puts the display to sleep"""
         # to wake call reset() or init()
-        self.send_command(VCOM_AND_DATA_INTERVAL_SETTING, data=b"\x17")  # for this panel, must be 0x17
-        self.send_command(VCM_DC_SETTING_REGISTER, data=b"\x00")  # to solve Vcom drop
-        self.send_command(POWER_SETTING, data=b"\x02\x00\x00\x00")  # gate switch to external
-        self.wait_until_idle()
-        self.send_command(POWER_OFF)
+        self._send_command(VCOM_AND_DATA_INTERVAL_SETTING, data=b"\x17")  # for this panel, must be 0x17
+        self._send_command(VCM_DC_SETTING_REGISTER, data=b"\x00")  # to solve Vcom drop
+        self._send_command(POWER_SETTING, data=b"\x02\x00\x00\x00")  # gate switch to external
+        self._wait_until_idle()
+        self._send_command(POWER_OFF)
 
 
     def clear(self) -> None:
         '''Clears the display'''
-        self.send_command(DATA_START_TRANSMISSION_1)
+        self._send_command(DATA_START_TRANSMISSION_1)
         for _ in range(self.area):
-            self.send_data(b"\xFF\xFF")
-        self.send_command(DATA_START_TRANSMISSION_2)
+            self._send_data(b"\xFF\xFF")
+        self._send_command(DATA_START_TRANSMISSION_2)
         for _ in range(self.area):
-            self.send_data(b"\xFF")
-        self.send_command(DISPLAY_REFRESH)
-        self.wait_until_idle()
+            self._send_data(b"\xFF")
+        self._send_command(DISPLAY_REFRESH)
+        self._wait_until_idle()
 
-    def setframe(self) -> bytearray:
-        '''Creates canvas'''
+    def clear_canvas(self) -> None:
+        '''resets canvas'''
+        for pos in range(len(self.black_frame)):
+            self.black_frame[pos]=255
+
         return bytearray([0xFF] * self.area)
 
     def setdarkframe(self) -> bytearray:
@@ -139,67 +145,67 @@ class EPaperDisplay:
         sleep_ms(200)
 
     def set_lut_bw(self) -> None:
-        self.send_command(VCOM_LUT, self.LUT_VCOM0)  # vcom
-        self.send_command(W2W_LUT, self.LUT_W)  # ww --
-        self.send_command(B2W_LUT, self.LUT_B)  # bw r
-        self.send_command(W2B_LUT, self.LUT_G1)  # wb w
-        self.send_command(B2B_LUT, self.LUT_G2)  # bb b
+        self._send_command(VCOM_LUT, self.LUT_VCOM0)  # vcom
+        self._send_command(W2W_LUT, self.LUT_W)  # ww --
+        self._send_command(B2W_LUT, self.LUT_B)  # bw r
+        self._send_command(W2B_LUT, self.LUT_G1)  # wb w
+        self._send_command(B2B_LUT, self.LUT_G2)  # bb b
 
     def set_lut_red(self) -> None:
-        self.send_command(LUT_RED_0, self.LUT_VCOM1)
-        self.send_command(LUT_RED_1, self.LUT_RED0)
-        self.send_command(LUT_RED_2, self.LUT_RED1)
+        self._send_command(LUT_RED_0, self.LUT_VCOM1)
+        self._send_command(LUT_RED_1, self.LUT_RED0)
+        self._send_command(LUT_RED_2, self.LUT_RED1)
 
-    def display_frame(self, frame_buffer_black: bytearray, frame_buffer_red: bytearray) -> None:
+    def display_frame(self) -> None:
         '''Shows buffer in display'''
-        if frame_buffer_black:
-            self.send_command(DATA_START_TRANSMISSION_1)
+        if self.black_frame:
+            self._send_command(DATA_START_TRANSMISSION_1)
             sleep_ms(2)
             for pixel in range(self.area):
                 temp = 0x00
                 for bit in range(4):
-                    if frame_buffer_black[pixel] & (0x80 >> bit) != 0:
+                    if self.black_frame[pixel] & (0x80 >> bit) != 0:
                         temp |= 0xC0 >> (bit * 2)
-                self.send_data(bytearray([temp]))
+                self._send_data(bytearray([temp]))
                 temp = 0x00
                 for bit in range(4, 8):
-                    if frame_buffer_black[pixel] & (0x80 >> bit) != 0:
+                    if self.black_frame[pixel] & (0x80 >> bit) != 0:
                         temp |= 0xC0 >> ((bit - 4) * 2)
-                self.send_data(bytearray([temp]))
+                self._send_data(bytearray([temp]))
             sleep_ms(2)
-        if frame_buffer_red:
-            self.send_command(DATA_START_TRANSMISSION_2)
+        if self.red_frame:
+            self._send_command(DATA_START_TRANSMISSION_2)
             sleep_ms(2)
             for pixel in range(self.area):
-                self.send_data(bytearray([frame_buffer_red[pixel]]))
+                self._send_data(bytearray([self.red_frame[pixel]]))
             sleep_ms(2)
 
-        self.send_command(DISPLAY_REFRESH)
-        self.wait_until_idle()
+        self._send_command(DISPLAY_REFRESH)
+        self._wait_until_idle()
 
 
     def init(self) -> None:
         '''Sequence to initialise the display'''
         self.reset()
-        self.send_command(POWER_SETTING, b'\x07\x00\x08\x00')
-        self.send_command(BOOSTER_SOFT_START, b'\x07\x07\x07')
-        self.send_command(POWER_ON)
-        self.wait_until_idle()
-        self.send_command(PANEL_SETTING, b'\xCF')
-        self.send_command(VCOM_AND_DATA_INTERVAL_SETTING, b'\x17') # for this panel, must be 0x17
-        self.send_command(PLL_CONTROL, b'\x39') 
-        self.send_command(TCON_RESOLUTION, ustruct.pack(">BH", EPD_WIDTH, EPD_HEIGHT)) #b'\xc8\x00\xc8
-        self.send_command(VCM_DC_SETTING_REGISTER, b'\x0E') # -1.4V
+        self._send_command(POWER_SETTING, b'\x07\x00\x08\x00')
+        self._send_command(BOOSTER_SOFT_START, b'\x07\x07\x07')
+        self._send_command(POWER_ON)
+        self._wait_until_idle()
+        self._send_command(PANEL_SETTING, b'\xCF')
+        self._send_command(VCOM_AND_DATA_INTERVAL_SETTING, b'\x17') # for this panel, must be 0x17
+        self._send_command(PLL_CONTROL, b'\x39') 
+        self._send_command(TCON_RESOLUTION, ustruct.pack(">BH", EPD_WIDTH, EPD_HEIGHT)) #b'\xc8\x00\xc8
+        self._send_command(VCM_DC_SETTING_REGISTER, b'\x0E') # -1.4V
         self.set_lut_bw()
         self.set_lut_red()
 
   
-    def draw_bmp(self, frame_buffer: bytearray, image_path: str, colored: int) -> None: 
+    def draw_bmp(self, black_red: str, image_path: str, colored: int) -> None: 
         '''Draws image from pos 0,0'''
-        self.draw_bmp_at(frame_buffer, 0, 0, image_path, colored)
+        self.draw_bmp_at(black_red, 0, 0, image_path, colored)
 
 
-    def draw_bmp_at(self, frame_buffer: bytearray, x: int, y: int, image_path: str, colored: int) -> None:
+    def draw_bmp_at(self, black_red: str, x: int, y: int, image_path: str, colored: int) -> None:
         '''Draws image'''
         if x >= self.width or y >= self.height:
             print("Can't draw here")
@@ -260,13 +266,13 @@ class EPaperDisplay:
                         byte = ~line[byte_index]
                         for i in range(8):
                             if byte & (0x80 >> i):
-                                self.set_pixel(frame_buffer, byte_index*8 + i + x, absolute_row, colored)
+                                self._set_pixel(black_red, byte_index*8 + i + x, absolute_row, colored)
 
         except OSError as e:
             print("not found")
             print('error: {}'.format(e))
 
-    def set_pixel(self, frame_buffer: bytearray, x: int, y: int, colored: int) -> None:
+    def _set_pixel(self, black_red: str, x: int, y: int, colored: int) -> None:
         if (x < 0 or x >= self.width or y < 0 or y >= self.height):
             #print("Pixel broken")
             return
@@ -281,22 +287,30 @@ class EPaperDisplay:
             point_temp = x
             x = y
             y = EPD_HEIGHT - point_temp
-        self.set_absolute_pixel(frame_buffer, x, y, colored)
+        self._set_absolute_pixel(black_red, x, y, colored)
 
 
-    def set_absolute_pixel(self, frame_buffer: bytearray, x: int, y: int, colored: int) -> None:
+    def _set_absolute_pixel(self, black_red: str, x: int, y: int, colored: int) -> None:
         # To avoid display orientation effects
         # use EPD_WIDTH instead of self.width
         # use EPD_HEIGHT instead of self.height
         if (x < 0 or x >= EPD_WIDTH or y < 0 or y >= EPD_HEIGHT):
             return
         if colored:
-            frame_buffer[int((x + y * EPD_WIDTH) / 8)] &= ~(0x80 >> (x % 8))
+            if black_red == 'black':
+                self.black_frame[int((x + y * EPD_WIDTH) / 8)] &= ~(0x80 >> (x % 8))
+            elif black_red == 'red':
+                self.red_frame[int((x + y * EPD_WIDTH) / 8)] &= ~(0x80 >> (x % 8))
+            else:
+                print("Wrong option")
         else:
-            frame_buffer[int((x + y * EPD_WIDTH) / 8)] |= 0x80 >> (x % 8)
+            if black_red == 'black':
+                self.black_frame[int((x + y * EPD_WIDTH) / 8)] |= 0x80 >> (x % 8)
+            elif black_red == 'red':
+                self.red_frame[int((x + y * EPD_WIDTH) / 8)] |= 0x80 >> (x % 8)
     
 
-    def draw_line(self, frame_buffer: bytearray, x0: int, y0: int, x1: int, y1: int, colored: int) -> None:
+    def draw_line(self, black_red: str, x0: int, y0: int, x1: int, y1: int, colored: int) -> None:
         # Bresenham algorithm
         dx = abs(x1 - x0)
         sx = 1 if x0 < x1 else -1
@@ -304,7 +318,7 @@ class EPaperDisplay:
         sy = 1 if y0 < y1 else -1
         err = dx + dy
         while((x0 != x1) and (y0 != y1)):
-            self.set_pixel(frame_buffer, x0, y0 , colored)
+            self._set_pixel(black_red, x0, y0 , colored)
             if (2 * err >= dy):
                 err += dy
                 x0 += sx
@@ -313,14 +327,14 @@ class EPaperDisplay:
                 y0 += sy
 
 
-    def draw_horizontal_line(self, frame_buffer: bytearray, x: int, y: int, width: int, colored: int) -> None:
+    def draw_horizontal_line(self, black_red: str, x: int, y: int, width: int, colored: int) -> None:
         for i in range(x, x + width):
-            self.set_pixel(frame_buffer, i, y, colored)
+            self._set_pixel(black_red, i, y, colored)
 
 
-    def draw_vertical_line(self, frame_buffer: bytearray, x: int, y: int, height: int, colored: int) -> None:
+    def draw_vertical_line(self, black_red: str, x: int, y: int, height: int, colored: int) -> None:
         for i in range(y, y + height):
-            self.set_pixel(frame_buffer, x, i, colored)
+            self._set_pixel(black_red, x, i, colored)
 
 
     def draw_rectangle(self, frame_buffer: bytearray, x0: int, y0: int, x1: int, y1: int, colored: int) -> None:
@@ -334,16 +348,16 @@ class EPaperDisplay:
         self.draw_vertical_line(frame_buffer, max_x, min_y, max_y - min_y + 1, colored)
 
 
-    def draw_filled_rectangle(self, frame_buffer: bytearray, x0: int, y0: int, x1: int, y1: int, colored: int) -> None:
+    def draw_filled_rectangle(self, black_red: str, x0: int, y0: int, x1: int, y1: int, colored: int) -> None:
         min_x = x0 if x1 > x0 else x1
         max_x = x1 if x1 > x0 else x0
         min_y = y0 if y1 > y0 else y1
         max_y = y1 if y1 > y0 else y0
         for i in range(min_x, max_x + 1):
-            self.draw_vertical_line(frame_buffer, i, min_y, max_y - min_y + 1, colored)
+            self.draw_vertical_line(black_red, i, min_y, max_y - min_y + 1, colored)
 
 
-    def draw_circle(self, frame_buffer: bytearray, x: int, y: int, radius: int, colored: int) -> None:
+    def draw_circle(self, black_red: str, x: int, y: int, radius: int, colored: int) -> None:
         # Bresenham algorithm
         x_pos = -radius
         y_pos = 0
@@ -352,10 +366,10 @@ class EPaperDisplay:
             print("Out of range")
             return
         while True:
-            self.set_pixel(frame_buffer, x - x_pos, y + y_pos, colored)
-            self.set_pixel(frame_buffer, x + x_pos, y + y_pos, colored)
-            self.set_pixel(frame_buffer, x + x_pos, y - y_pos, colored)
-            self.set_pixel(frame_buffer, x - x_pos, y - y_pos, colored)
+            self._set_pixel(black_red, x - x_pos, y + y_pos, colored)
+            self._set_pixel(black_red, x + x_pos, y + y_pos, colored)
+            self._set_pixel(black_red, x + x_pos, y - y_pos, colored)
+            self._set_pixel(black_red, x - x_pos, y - y_pos, colored)
             e2 = err
             if (e2 <= y_pos):
                 y_pos += 1
@@ -369,7 +383,7 @@ class EPaperDisplay:
                 break
 
 
-    def draw_filled_circle(self, frame_buffer: bytearray, x: int, y: int, radius: int, colored: int):
+    def draw_filled_circle(self, black_red: str, x: int, y: int, radius: int, colored: int):
         # Bresenham algorithm
         x_pos = -radius
         y_pos = 0
@@ -378,12 +392,12 @@ class EPaperDisplay:
             print("Out of range")
             return
         while True:
-            self.set_pixel(frame_buffer, x - x_pos, y + y_pos, colored)
-            self.set_pixel(frame_buffer, x + x_pos, y + y_pos, colored)
-            self.set_pixel(frame_buffer, x + x_pos, y - y_pos, colored)
-            self.set_pixel(frame_buffer, x - x_pos, y - y_pos, colored)
-            self.draw_horizontal_line(frame_buffer, x + x_pos, y + y_pos, 2 * (-x_pos) + 1, colored)
-            self.draw_horizontal_line(frame_buffer, x + x_pos, y - y_pos, 2 * (-x_pos) + 1, colored)
+            self._set_pixel(black_red, x - x_pos, y + y_pos, colored)
+            self._set_pixel(black_red, x + x_pos, y + y_pos, colored)
+            self._set_pixel(black_red, x + x_pos, y - y_pos, colored)
+            self._set_pixel(black_red, x - x_pos, y - y_pos, colored)
+            self.draw_horizontal_line(black_red, x + x_pos, y + y_pos, 2 * (-x_pos) + 1, colored)
+            self.draw_horizontal_line(black_red, x + x_pos, y - y_pos, 2 * (-x_pos) + 1, colored)
             e2 = err
             if (e2 <= y_pos):
                 y_pos += 1
@@ -396,84 +410,28 @@ class EPaperDisplay:
             if x_pos > 0:
                 break
 
-    def draw_char_at(self, frame_buffer: bytearray, x: int, y: int, char: str, font: bytes, colored: int) -> None:
-        char_offset = (ord(char) - ord(' ')) * font.height * (int(font.width / 8) + (1 if font.width % 8 else 0))
-        offset = 0
 
-        for j in range(font.height):
-            for i in range(font.width):
-                if font.data[char_offset+offset] & (0x80 >> (i % 8)):
-                    self.set_pixel(frame_buffer, x + i, y + j, colored)
-                if i % 8 == 7:
-                    offset += 1
-            if font.width % 8 != 0:
-                offset += 1
-
-
-    def display_string_at(self, frame_buffer: bytearray, x: int, y: int, text: str, font: bytes, colored: int) -> None:
-        refcolumn = x
-
-        # Send the string character by character on EPD
-        for index in range(len(text)):
-            # Display one character on EPD
-            self.draw_char_at(frame_buffer, refcolumn, y, text[index], font, colored)
-            # Decrement the column position by 16
-            refcolumn += font.width
-
-
-    def draw_char(self, frame_buffer: bytearray, xstart: int, ystart: int, height: int, width: int, glyph: memoryview, colored: int) -> None:
-        #char_offset = (ord(char) - ord(' ')) * font.height * (int(font.width / 8) + (1 if font.width % 8 else 0))
-        offset = 0
-
-#        chardata=bytes(glyph)
-        print("calc {}".format(height*width))
-        print("len {}".format(len(glyph)*8))
-
-                
-        for x in range(width):
-            for y in range(height):
-                if glyph[offset] & (0x80 >> (x % 8)):
-                    self.set_pixel(frame_buffer, xstart + x, ystart + y, colored)
-                if x % 8 == 7:
-                    offset += 1
-            if height % 8 != 0:
-                offset += 1
-
-
-
-    def display_string(self, frame_buffer: bytearray, x: int, y: int, text: str, font: bytes, colored: int) -> None:
-        refcolumn = x
-        # Send the string character by character on EPD
-        for letter in text:
-            #Get char info
-            glyph, height, width=font.get_ch(letter)
-            # Display one character on EPD
-            self.draw_char(frame_buffer, refcolumn, y, height, width, glyph, colored)
-            # Decrement the column position by 16
-            refcolumn += width
-
-
-    def draw_ch(self, frame_buffer: bytearray, xstart: int, ystart: int, height: int, width: int, glyph: memoryview, colored: int) -> None:
+    def draw_ch(self, black_red: str, xstart: int, ystart: int, height: int, width: int, glyph: memoryview, colored: int) -> None:
         #char_offset = (ord(char) - ord(' ')) * font.height * (int(font.width / 8) + (1 if font.width % 8 else 0))
         offset=0
         for x in range(width):
             for y in range(height):
                 if glyph[offset] & (0x1 << (y % 8)): # 0x80 = 10000000
-                    self.set_pixel(frame_buffer, xstart + x, ystart + y, colored)
+                    self._set_pixel(black_red, xstart + x, ystart + y, colored)
                 if y % 8 ==7:
                     offset += 1
             if width % 8 !=0:
                 offset += 1
 
 
-    def display_str(self, frame_buffer: bytearray, x: int, y: int, text: str, font: bytes, colored: int) -> None:
+    def display_str(self, black_red: str, x: int, y: int, text: str, font: bytes, colored: int) -> None:
         refcolumn = x
         # Send the string character by character on EPD
         for letter in text:
             #Get char info
             glyph, height, width=font.get_ch(letter)
             # Display one character on EPD
-            self.draw_ch(frame_buffer, refcolumn, y, height, width, glyph, colored)
+            self.draw_ch(black_red, refcolumn, y, height, width, glyph, colored)
             # Decrement the column position by 16
             refcolumn += width
 
