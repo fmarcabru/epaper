@@ -9,8 +9,8 @@ esp.osdebug(0)
 
 gc.collect()
 
-ssid = "abcdefg"
-password = "Dani1504"
+ssid = ""
+password = ""
 
 station = network.WLAN(network.STA_IF)
 station.active(True)
