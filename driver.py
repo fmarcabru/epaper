@@ -344,15 +344,15 @@ class EPaperDisplay:
             self._set_pixel(black_red, x, i, colored)
 
 
-    def draw_rectangle(self, frame_buffer: bytearray, x0: int, y0: int, x1: int, y1: int, colored: int) -> None:
+    def draw_rectangle(self, black_red: str, x0: int, y0: int, x1: int, y1: int, colored: int) -> None:
         min_x = x0 if x1 > x0 else x1
         max_x = x1 if x1 > x0 else x0
         min_y = y0 if y1 > y0 else y1
         max_y = y1 if y1 > y0 else y0
-        self.draw_horizontal_line(frame_buffer, min_x, min_y, max_x - min_x + 1, colored)
-        self.draw_horizontal_line(frame_buffer, min_x, max_y, max_x - min_x + 1, colored)
-        self.draw_vertical_line(frame_buffer, min_x, min_y, max_y - min_y + 1, colored)
-        self.draw_vertical_line(frame_buffer, max_x, min_y, max_y - min_y + 1, colored)
+        self.draw_horizontal_line(black_red, min_x, min_y, max_x - min_x + 1, colored)
+        self.draw_horizontal_line(black_red, min_x, max_y, max_x - min_x + 1, colored)
+        self.draw_vertical_line(black_red, min_x, min_y, max_y - min_y + 1, colored)
+        self.draw_vertical_line(black_red, max_x, min_y, max_y - min_y + 1, colored)
 
 
     def draw_filled_rectangle(self, black_red: str, x0: int, y0: int, x1: int, y1: int, colored: int) -> None:
