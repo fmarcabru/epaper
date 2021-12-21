@@ -3,6 +3,10 @@
 My version of the 1.54inch epaper driver for ESP32 running micropython, based on (https://github.com/waveshare/e-Paper), https://kapusta.cc/2018/03/31/epd/ and https://github.com/mcauser/micropython-waveshare-epaper
 
 ![image](other/Screenshot_1462.png)
+
+
+main.py contains a small demo that goes over a few options to print on the display.
+
 ## To work with fonts:
 * Get a font from a website like https://www.fontsquirrel.com/
 * load it in Fontforge and select the glyphs required
